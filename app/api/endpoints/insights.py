@@ -9,7 +9,7 @@ from datetime import datetime
 
 from app.core.database import get_db
 from app.services.vector_search import vector_search_service
-from app.models.business_insight import BusinessInsight, TimeSeriesData
+from app.models.business_insight import BusinessInsight
 
 router = APIRouter()
 

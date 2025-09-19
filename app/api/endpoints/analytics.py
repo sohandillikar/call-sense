@@ -8,8 +8,9 @@ from pydantic import BaseModel
 from datetime import datetime, timedelta
 
 from app.core.database import get_db
+from app.core.config import settings
 from app.services.tigerdata_client import time_series_analysis_service, tigerdata_client
-from app.models.business_insight import TimeSeriesData, DashboardWidget, AlertRule
+from app.models.business_insight import DashboardWidget, AlertRule
 
 router = APIRouter()
 
@@ -211,40 +212,17 @@ async def list_alert_rules(
 async def get_metrics_summary(db: Session = Depends(get_db)):
     """Get summary of all metrics and KPIs"""
     try:
-        # Get time-series data summary
-        time_series_data = db.query(TimeSeriesData).all()
-        
-        # Group by metric category
-        metrics_by_category = {}
-        for data in time_series_data:
-            category = data.metric_category
-            if category not in metrics_by_category:
-                metrics_by_category[category] = {
-                    "total_data_points": 0,
-                    "metrics": set(),
-                    "latest_values": {}
-                }
-            
-            metrics_by_category[category]["total_data_points"] += 1
-            metrics_by_category[category]["metrics"].add(data.metric_name)
-            
-            # Store latest value for each metric
-            if data.metric_name not in metrics_by_category[category]["latest_values"]:
-                metrics_by_category[category]["latest_values"][data.metric_name] = {
-                    "value": data.value,
-                    "timestamp": data.timestamp,
-                    "unit": data.unit
-                }
-        
-        # Convert sets to lists for JSON serialization
-        for category in metrics_by_category:
-            metrics_by_category[category]["metrics"] = list(metrics_by_category[category]["metrics"])
-        
+        # Since we're using TigerData for time-series data, return a summary
+        # that indicates the data is stored in TigerData
         return {
-            "metrics_by_category": metrics_by_category,
-            "total_metrics": len(set([data.metric_name for data in time_series_data])),
-            "total_data_points": len(time_series_data),
-            "last_updated": max([data.created_at for data in time_series_data]) if time_series_data else None
+            "message": "Time-series data is stored in TigerData",
+            "tigerdata_configured": bool(settings.TIGERDATA_SERVICE_URL),
+            "available_metrics": [
+                "customer_satisfaction_calls",
+                "competitor_pricing_*",
+                "review_sentiment_*"
+            ],
+            "last_updated": datetime.now().isoformat()
         }
         
     except Exception as e:

@@ -37,6 +37,81 @@ class ReviewResponse(BaseModel):
     key_themes: List[str]
 
 
+async def _process_reviews(reviews: List[Dict[str, Any]], db: Session, is_competitor: bool = False, competitor_name: str = "") -> List[ReviewResponse]:
+    """Helper function to process and analyze reviews"""
+    processed_reviews = []
+    
+    for review in reviews:
+        # Analyze sentiment
+        sentiment_analysis = await review_analysis_service.analyze_review_sentiment(
+            review.get("review_text", "")
+        )
+        
+        # Extract themes
+        themes = await review_analysis_service.extract_review_themes(
+            review.get("review_text", "")
+        )
+        
+        # Store in database
+        if is_competitor:
+            review_record = CompetitorReview(
+                review_id=f"{review.get('platform', '')}_{review.get('reviewer_name', '')}_{review.get('review_date', '')}",
+                competitor_name=competitor_name,
+                platform=review.get("platform", ""),
+                reviewer_name=review.get("reviewer_name", ""),
+                rating=review.get("rating", 0),
+                review_text=review.get("review_text", ""),
+                sentiment_score=sentiment_analysis["sentiment_score"],
+                sentiment_label=sentiment_analysis["sentiment_label"],
+                key_themes=themes,
+                competitive_insights=themes  # Use themes as competitive insights for now
+            )
+        else:
+            review_record = CompanyReview(
+                review_id=f"{review.get('platform', '')}_{review.get('reviewer_name', '')}_{review.get('review_date', '')}",
+                platform=review.get("platform", ""),
+                reviewer_name=review.get("reviewer_name", ""),
+                rating=review.get("rating", 0),
+                review_text=review.get("review_text", ""),
+                sentiment_score=sentiment_analysis["sentiment_score"],
+                sentiment_label=sentiment_analysis["sentiment_label"],
+                key_themes=themes,
+                is_verified=review.get("is_verified", False),
+                response_text=review.get("business_response", "")
+            )
+        
+        db.add(review_record)
+        
+        # Store in vector search
+        review_metadata = {
+            "platform": review.get("platform", ""),
+            "rating": review.get("rating", 0),
+            "created_at": review.get("scraped_at", ""),
+            "is_verified": review.get("is_verified", False)
+        }
+        
+        review_analysis = {
+            "sentiment_analysis": sentiment_analysis,
+            "themes": themes
+        }
+        
+        await vector_search_service.store_review_insight(
+            review.get("review_text", ""), review_analysis, review_metadata
+        )
+        
+        processed_reviews.append(ReviewResponse(
+            platform=review.get("platform", ""),
+            reviewer_name=review.get("reviewer_name", ""),
+            rating=review.get("rating", 0),
+            review_text=review.get("review_text", ""),
+            sentiment_score=sentiment_analysis["sentiment_score"],
+            sentiment_label=sentiment_analysis["sentiment_label"],
+            key_themes=themes
+        ))
+    
+    return processed_reviews
+
+
 @router.post("/scrape-company", response_model=List[ReviewResponse])
 async def scrape_company_reviews(
     request: ReviewScrapingRequest,

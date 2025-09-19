@@ -16,6 +16,80 @@ from app.models.customer_call import CustomerCall, CallInsight
 router = APIRouter()
 
 
+async def _process_call_transcription(transcription_text: str, customer_phone: str, call_type: str, db: Session):
+    """Helper function to process call transcription and generate insights"""
+    # Analyze sentiment
+    sentiment_analysis = await call_analysis_service.analyze_call_sentiment(transcription_text)
+    
+    # Extract key topics
+    key_topics = await call_analysis_service.extract_key_topics(transcription_text)
+    
+    # Generate action items
+    action_items = await call_analysis_service.generate_action_items(transcription_text, sentiment_analysis)
+    
+    # Calculate priority score
+    priority_score = await call_analysis_service.calculate_priority_score(sentiment_analysis, action_items)
+    
+    # Find similar calls using vector search
+    similar_calls = await vector_search_service.find_similar_calls(transcription_text, limit=3)
+    
+    # Store call data in database
+    import uuid
+    call_id = str(uuid.uuid4())
+    
+    call_record = CustomerCall(
+        call_id=call_id,
+        customer_phone=customer_phone,
+        call_type=call_type,
+        transcription=transcription_text,
+        sentiment_score=sentiment_analysis["sentiment_score"],
+        sentiment_label=sentiment_analysis["sentiment_label"],
+        key_topics=key_topics,
+        action_items=action_items,
+        priority_score=priority_score
+    )
+    
+    db.add(call_record)
+    db.commit()
+    
+    # Store call insights in vector search
+    call_metadata = {
+        "call_id": call_id,
+        "customer_phone": customer_phone,
+        "call_type": call_type,
+        "created_at": datetime.now().isoformat()
+    }
+    
+    call_insights = {
+        "sentiment_analysis": sentiment_analysis,
+        "key_topics": key_topics,
+        "action_items": action_items,
+        "priority_score": priority_score
+    }
+    
+    await vector_search_service.store_call_insight(
+        transcription_text, call_insights, call_metadata
+    )
+    
+    # Store in time-series data
+    await time_series_analysis_service.store_customer_satisfaction_trends([{
+        "created_at": datetime.now().isoformat(),
+        "sentiment_score": sentiment_analysis["sentiment_score"],
+        "call_type": call_type,
+        "priority_score": priority_score
+    }])
+    
+    return CallTranscriptionResponse(
+        call_id=call_id,
+        transcription=transcription_text,
+        sentiment_analysis=sentiment_analysis,
+        key_topics=key_topics,
+        action_items=action_items,
+        priority_score=priority_score,
+        similar_calls=similar_calls
+    )
+
+
 class CallTranscriptionRequest(BaseModel):
     audio_url: str
     language: str = "en"
@@ -62,75 +136,9 @@ async def transcribe_call(
         if not transcription_text:
             raise HTTPException(status_code=400, detail="No transcription text found")
         
-        # Analyze sentiment
-        sentiment_analysis = await call_analysis_service.analyze_call_sentiment(transcription_text)
-        
-        # Extract key topics
-        key_topics = await call_analysis_service.extract_key_topics(transcription_text)
-        
-        # Generate action items
-        action_items = await call_analysis_service.generate_action_items(transcription_text, sentiment_analysis)
-        
-        # Calculate priority score
-        priority_score = await call_analysis_service.calculate_priority_score(sentiment_analysis, action_items)
-        
-        # Find similar calls using vector search
-        similar_calls = await vector_search_service.find_similar_calls(transcription_text, limit=3)
-        
-        # Store call data in database
-        import uuid
-        call_id = str(uuid.uuid4())
-        
-        call_record = CustomerCall(
-            call_id=call_id,
-            customer_phone=request.customer_phone,
-            call_type=request.call_type,
-            transcription=transcription_text,
-            sentiment_score=sentiment_analysis["sentiment_score"],
-            sentiment_label=sentiment_analysis["sentiment_label"],
-            key_topics=key_topics,
-            action_items=action_items,
-            priority_score=priority_score
-        )
-        
-        db.add(call_record)
-        db.commit()
-        
-        # Store call insights in vector search
-        call_metadata = {
-            "call_id": call_id,
-            "customer_phone": request.customer_phone,
-            "call_type": request.call_type,
-            "created_at": datetime.now().isoformat()
-        }
-        
-        call_insights = {
-            "sentiment_analysis": sentiment_analysis,
-            "key_topics": key_topics,
-            "action_items": action_items,
-            "priority_score": priority_score
-        }
-        
-        await vector_search_service.store_call_insight(
-            transcription_text, call_insights, call_metadata
-        )
-        
-        # Store in time-series data
-        await time_series_analysis_service.store_customer_satisfaction_trends([{
-            "created_at": datetime.now().isoformat(),
-            "sentiment_score": sentiment_analysis["sentiment_score"],
-            "call_type": request.call_type,
-            "priority_score": priority_score
-        }])
-        
-        return CallTranscriptionResponse(
-            call_id=call_id,
-            transcription=transcription_text,
-            sentiment_analysis=sentiment_analysis,
-            key_topics=key_topics,
-            action_items=action_items,
-            priority_score=priority_score,
-            similar_calls=similar_calls
+        # Process transcription using helper function
+        return await _process_call_transcription(
+            transcription_text, request.customer_phone, request.call_type, db
         )
         
     except Exception as e:
@@ -171,48 +179,9 @@ async def upload_and_transcribe_call(
             if not transcription_text:
                 raise HTTPException(status_code=400, detail="No transcription text found")
             
-            # Analyze sentiment
-            sentiment_analysis = await call_analysis_service.analyze_call_sentiment(transcription_text)
-            
-            # Extract key topics
-            key_topics = await call_analysis_service.extract_key_topics(transcription_text)
-            
-            # Generate action items
-            action_items = await call_analysis_service.generate_action_items(transcription_text, sentiment_analysis)
-            
-            # Calculate priority score
-            priority_score = await call_analysis_service.calculate_priority_score(sentiment_analysis, action_items)
-            
-            # Find similar calls using vector search
-            similar_calls = await vector_search_service.find_similar_calls(transcription_text, limit=3)
-            
-            # Store call data in database
-            import uuid
-            call_id = str(uuid.uuid4())
-            
-            call_record = CustomerCall(
-                call_id=call_id,
-                customer_phone=customer_phone,
-                call_type=call_type,
-                transcription=transcription_text,
-                sentiment_score=sentiment_analysis["sentiment_score"],
-                sentiment_label=sentiment_analysis["sentiment_label"],
-                key_topics=key_topics,
-                action_items=action_items,
-                priority_score=priority_score
-            )
-            
-            db.add(call_record)
-            db.commit()
-            
-            return CallTranscriptionResponse(
-                call_id=call_id,
-                transcription=transcription_text,
-                sentiment_analysis=sentiment_analysis,
-                key_topics=key_topics,
-                action_items=action_items,
-                priority_score=priority_score,
-                similar_calls=similar_calls
+            # Process transcription using helper function
+            return await _process_call_transcription(
+                transcription_text, customer_phone, call_type, db
             )
             
         finally:

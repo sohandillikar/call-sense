@@ -27,20 +27,7 @@ class BusinessInsight(Base):
     updated_at = Column(DateTime(timezone=True), onupdate=func.now())
 
 
-class TimeSeriesData(Base):
-    """Model for storing time-series data for analytics"""
-    
-    __tablename__ = "time_series_data"
-    
-    id = Column(Integer, primary_key=True, index=True)
-    metric_name = Column(String, index=True)  # 'customer_satisfaction', 'competitor_price', etc.
-    metric_category = Column(String)  # 'customer', 'competitor', 'financial', 'market'
-    value = Column(Float)
-    unit = Column(String)  # 'rating', 'price', 'percentage', etc.
-    timestamp = Column(DateTime, index=True)
-    data_metadata = Column(JSON)  # Additional context data
-    data_source = Column(String)  # Source of the data
-    created_at = Column(DateTime(timezone=True), server_default=func.now())
+# TimeSeriesData model removed - using TigerData for time-series analytics
 
 
 class DashboardWidget(Base):

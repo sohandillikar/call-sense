@@ -1,9 +1,9 @@
 """
-TigerData client for time-series data storage and analysis
+TigerData client for time-series data storage and analysis using direct PostgreSQL connection
 """
-import httpx
 import asyncio
-from typing import Dict, Any, Optional, List, Tuple
+import asyncpg
+from typing import Dict, Any, Optional, List
 from app.core.config import settings
 import json
 from datetime import datetime, timedelta
@@ -12,142 +12,191 @@ import numpy as np
 
 
 class TigerDataClient:
-    """Client for interacting with TigerData API"""
+    """Client for interacting with TigerData using direct PostgreSQL connection"""
     
     def __init__(self):
-        self.api_key = settings.TIGERDATA_API_KEY
-        self.base_url = "https://api.tigerdata.com/v1"
-        self.headers = {
-            "Authorization": f"Bearer {self.api_key}",
-            "Content-Type": "application/json"
-        }
+        self.service_url = settings.TIGERDATA_SERVICE_URL
+        self.connection_pool = None
+    
+    async def _get_connection(self):
+        """Get a database connection from the pool"""
+        if not self.connection_pool:
+            self.connection_pool = await asyncpg.create_pool(
+                self.service_url,
+                min_size=1,
+                max_size=10
+            )
+        return await self.connection_pool.acquire()
+    
+    async def _release_connection(self, connection):
+        """Release a database connection back to the pool"""
+        if self.connection_pool:
+            await self.connection_pool.release(connection)
+    
+    async def _ensure_tables_exist(self):
+        """Ensure required tables exist in TigerData"""
+        try:
+            conn = await self._get_connection()
+            try:
+                # Create time_series_data table if it doesn't exist
+                await conn.execute("""
+                    CREATE TABLE IF NOT EXISTS time_series_data (
+                        id SERIAL PRIMARY KEY,
+                        metric_name VARCHAR(255) NOT NULL,
+                        timestamp TIMESTAMPTZ NOT NULL,
+                        value DOUBLE PRECISION NOT NULL,
+                        metadata JSONB,
+                        created_at TIMESTAMPTZ DEFAULT NOW()
+                    );
+                """)
+                
+                # Create hypertable for time-series optimization
+                await conn.execute("""
+                    SELECT create_hypertable('time_series_data', 'timestamp', 
+                                           if_not_exists => TRUE);
+                """)
+                
+                # Create index for efficient queries
+                await conn.execute("""
+                    CREATE INDEX IF NOT EXISTS idx_time_series_metric_timestamp 
+                    ON time_series_data (metric_name, timestamp DESC);
+                """)
+                
+            finally:
+                await self._release_connection(conn)
+        except Exception as e:
+            print(f"Error ensuring tables exist: {e}")
     
     async def store_time_series_data(self, metric_name: str, data_points: List[Dict[str, Any]]) -> bool:
-        """Store time-series data points"""
+        """Store time-series data points directly in PostgreSQL"""
         try:
-            async with httpx.AsyncClient() as client:
-                payload = {
-                    "metric_name": metric_name,
-                    "data_points": data_points,
-                    "timestamp": datetime.now().isoformat()
-                }
+            if not self.service_url:
+                print("TigerData service URL not configured")
+                return False
+            
+            await self._ensure_tables_exist()
+            
+            conn = await self._get_connection()
+            try:
+                # Prepare data for batch insert
+                insert_data = []
+                for point in data_points:
+                    insert_data.append((
+                        metric_name,
+                        point.get("timestamp", datetime.now().isoformat()),
+                        point.get("value", 0),
+                        json.dumps(point.get("metadata", {}))
+                    ))
                 
-                response = await client.post(
-                    f"{self.base_url}/timeseries",
-                    headers=self.headers,
-                    json=payload,
-                    timeout=30.0
-                )
-                response.raise_for_status()
+                # Batch insert
+                await conn.executemany("""
+                    INSERT INTO time_series_data (metric_name, timestamp, value, metadata)
+                    VALUES ($1, $2, $3, $4)
+                """, insert_data)
+                
                 return True
                 
-        except httpx.HTTPError as e:
-            print(f"TigerData API error: {e}")
-            return False
+            finally:
+                await self._release_connection(conn)
+                
         except Exception as e:
-            print(f"Unexpected error storing time series data: {e}")
+            print(f"Error storing time series data: {e}")
             return False
     
     async def get_time_series_data(self, metric_name: str, start_date: datetime, 
                                  end_date: datetime) -> List[Dict[str, Any]]:
         """Retrieve time-series data for a specific metric and date range"""
         try:
-            async with httpx.AsyncClient() as client:
-                params = {
-                    "metric_name": metric_name,
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat()
-                }
+            if not self.service_url:
+                return []
+            
+            conn = await self._get_connection()
+            try:
+                rows = await conn.fetch("""
+                    SELECT timestamp, value, metadata
+                    FROM time_series_data
+                    WHERE metric_name = $1 
+                    AND timestamp >= $2 
+                    AND timestamp <= $3
+                    ORDER BY timestamp ASC
+                """, metric_name, start_date, end_date)
                 
-                response = await client.get(
-                    f"{self.base_url}/timeseries",
-                    headers=self.headers,
-                    params=params,
-                    timeout=30.0
-                )
-                response.raise_for_status()
+                data_points = []
+                for row in rows:
+                    data_points.append({
+                        "timestamp": row["timestamp"].isoformat(),
+                        "value": float(row["value"]),
+                        "metadata": json.loads(row["metadata"]) if row["metadata"] else {}
+                    })
                 
-                result = response.json()
-                return result.get("data_points", [])
+                return data_points
                 
-        except httpx.HTTPError as e:
-            print(f"TigerData API error: {e}")
-            return []
+            finally:
+                await self._release_connection(conn)
+                
         except Exception as e:
-            print(f"Unexpected error retrieving time series data: {e}")
+            print(f"Error retrieving time series data: {e}")
             return []
     
     async def get_aggregated_data(self, metric_name: str, start_date: datetime, 
                                 end_date: datetime, aggregation: str = "daily") -> List[Dict[str, Any]]:
-        """Get aggregated time-series data"""
+        """Get aggregated time-series data using TimescaleDB functions"""
         try:
-            async with httpx.AsyncClient() as client:
-                params = {
-                    "metric_name": metric_name,
-                    "start_date": start_date.isoformat(),
-                    "end_date": end_date.isoformat(),
-                    "aggregation": aggregation
-                }
+            if not self.service_url:
+                return []
+            
+            conn = await self._get_connection()
+            try:
+                # Use TimescaleDB time_bucket function for aggregation
+                if aggregation == "daily":
+                    interval = "1 day"
+                elif aggregation == "hourly":
+                    interval = "1 hour"
+                elif aggregation == "weekly":
+                    interval = "1 week"
+                else:
+                    interval = "1 day"
                 
-                response = await client.get(
-                    f"{self.base_url}/timeseries/aggregated",
-                    headers=self.headers,
-                    params=params,
-                    timeout=30.0
-                )
-                response.raise_for_status()
+                rows = await conn.fetch(f"""
+                    SELECT 
+                        time_bucket('{interval}', timestamp) as bucket,
+                        AVG(value) as avg_value,
+                        MIN(value) as min_value,
+                        MAX(value) as max_value,
+                        COUNT(*) as count
+                    FROM time_series_data
+                    WHERE metric_name = $1 
+                    AND timestamp >= $2 
+                    AND timestamp <= $3
+                    GROUP BY bucket
+                    ORDER BY bucket ASC
+                """, metric_name, start_date, end_date)
                 
-                result = response.json()
-                return result.get("aggregated_data", [])
+                aggregated_data = []
+                for row in rows:
+                    aggregated_data.append({
+                        "timestamp": row["bucket"].isoformat(),
+                        "avg_value": float(row["avg_value"]),
+                        "min_value": float(row["min_value"]),
+                        "max_value": float(row["max_value"]),
+                        "count": row["count"]
+                    })
                 
-        except httpx.HTTPError as e:
-            print(f"TigerData API error: {e}")
-            return []
+                return aggregated_data
+                
+            finally:
+                await self._release_connection(conn)
+                
         except Exception as e:
-            print(f"Unexpected error retrieving aggregated data: {e}")
+            print(f"Error retrieving aggregated data: {e}")
             return []
     
-    async def create_dashboard(self, dashboard_config: Dict[str, Any]) -> str:
-        """Create a new dashboard"""
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.post(
-                    f"{self.base_url}/dashboards",
-                    headers=self.headers,
-                    json=dashboard_config,
-                    timeout=30.0
-                )
-                response.raise_for_status()
-                
-                result = response.json()
-                return result.get("dashboard_id", "")
-                
-        except httpx.HTTPError as e:
-            print(f"TigerData API error: {e}")
-            return ""
-        except Exception as e:
-            print(f"Unexpected error creating dashboard: {e}")
-            return ""
+    # Dashboard methods removed - using local database models for dashboard management
     
-    async def get_dashboard_data(self, dashboard_id: str) -> Dict[str, Any]:
-        """Get dashboard data and visualizations"""
-        try:
-            async with httpx.AsyncClient() as client:
-                response = await client.get(
-                    f"{self.base_url}/dashboards/{dashboard_id}",
-                    headers=self.headers,
-                    timeout=30.0
-                )
-                response.raise_for_status()
-                
-                return response.json()
-                
-        except httpx.HTTPError as e:
-            print(f"TigerData API error: {e}")
-            return {}
-        except Exception as e:
-            print(f"Unexpected error retrieving dashboard: {e}")
-            return {}
+    async def close(self):
+        """Close the connection pool"""
+        if self.connection_pool:
+            await self.connection_pool.close()
 
 
 class TimeSeriesAnalysisService:

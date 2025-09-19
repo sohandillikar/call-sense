@@ -3,7 +3,6 @@ Application configuration settings
 """
 from pydantic_settings import BaseSettings
 from typing import List, Union
-import os
 
 
 class Settings(BaseSettings):
@@ -12,6 +11,9 @@ class Settings(BaseSettings):
     # Database
     DATABASE_URL: str = "postgresql://username:password@localhost:5432/ai_business_assistant"
     
+    # TigerData (Time-series Analytics)
+    TIGERDATA_SERVICE_URL: str = ""
+    
     # Redis
     REDIS_URL: str = "redis://localhost:6379"
     
@@ -19,7 +21,6 @@ class Settings(BaseSettings):
     GLADIA_API_KEY: str = ""
     OPENAI_API_KEY: str = ""
     BRIGHT_DATA_API_KEY: str = ""
-    TIGERDATA_API_KEY: str = ""
     
     # Application
     DEBUG: bool = True
