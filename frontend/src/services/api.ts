@@ -186,6 +186,11 @@ export const competitorsApi = {
     return response.data;
   },
 
+  // Delete competitor
+  deleteCompetitor: async (competitorId: number): Promise<void> => {
+    await api.delete(`/api/v1/competitors/${competitorId}`);
+  },
+
   // Monitor competitor (legacy - redirects to add)
   monitorCompetitor: async (data: {
     competitor_name: string;

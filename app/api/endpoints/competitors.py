@@ -356,6 +356,24 @@ async def mark_alert_read(alert_id: int, db: Session = Depends(get_db)):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@router.delete("/{competitor_id}")
+async def delete_competitor(competitor_id: int, db: Session = Depends(get_db)):
+    """Delete a competitor"""
+    try:
+        competitor = db.query(CompetitorData).filter(CompetitorData.id == competitor_id).first()
+        
+        if not competitor:
+            raise HTTPException(status_code=404, detail="Competitor not found")
+        
+        db.delete(competitor)
+        db.commit()
+        
+        return {"message": "Competitor deleted successfully"}
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @router.get("/trends/{competitor_name}")
 async def get_competitor_trends(competitor_name: str, days: int = 30):
     """Get competitor pricing trends over time"""

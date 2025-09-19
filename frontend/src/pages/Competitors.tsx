@@ -9,7 +9,8 @@ import {
   TrendingUp,
   DollarSign,
   Eye,
-  EyeOff
+  EyeOff,
+  Trash2
 } from 'lucide-react';
 import { competitorsApi } from '../services/api';
 import type { CompetitorAlert } from '../services/api';
@@ -82,6 +83,18 @@ export default function Competitors() {
       ));
     } catch (err) {
       setError('Failed to mark alert as read');
+    }
+  };
+
+  const handleDeleteCompetitor = async (competitorId: number) => {
+    if (window.confirm('Are you sure you want to delete this competitor?')) {
+      try {
+        await competitorsApi.deleteCompetitor(competitorId);
+        fetchData(); // Refresh the data
+        setError(null);
+      } catch (err) {
+        setError('Failed to delete competitor');
+      }
     }
   };
 
@@ -198,14 +211,23 @@ export default function Competitors() {
               {competitors.map((competitor) => (
                 <div key={competitor.id} className="border border-gray-200 rounded-lg p-4">
                   <div className="flex items-center justify-between">
-                    <div>
+                    <div className="flex-1">
                       <h4 className="font-medium text-gray-900">{competitor.competitor_name}</h4>
                       <p className="text-sm text-gray-500">{competitor.industry}</p>
                       <p className="text-xs text-gray-400">{competitor.website_url}</p>
                     </div>
-                    <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
-                      Active
-                    </span>
+                    <div className="flex items-center space-x-2">
+                      <span className="px-2 py-1 text-xs font-medium bg-green-100 text-green-800 rounded-full">
+                        Active
+                      </span>
+                      <button
+                        onClick={() => handleDeleteCompetitor(competitor.id)}
+                        className="p-1 text-red-500 hover:text-red-700 hover:bg-red-50 rounded"
+                        title="Delete competitor"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
               ))}

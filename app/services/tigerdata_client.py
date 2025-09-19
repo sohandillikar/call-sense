@@ -241,15 +241,29 @@ class TimeSeriesAnalysisService:
             # Convert review data to time-series format
             data_points = []
             for item in review_data:
-                data_point = {
-                    "timestamp": item.get("review_date", datetime.now().isoformat()),
-                    "value": item.get("sentiment_score", 0),
-                    "metadata": {
-                        "rating": item.get("rating", 0),
-                        "platform": item.get("platform", ""),
-                        "review_text": item.get("review_text", "")[:100]  # Truncate for storage
+                # Handle both dict and ReviewResponse objects
+                if hasattr(item, 'sentiment_score'):
+                    # ReviewResponse object
+                    data_point = {
+                        "timestamp": getattr(item, 'review_date', datetime.now().isoformat()),
+                        "value": getattr(item, 'sentiment_score', 0),
+                        "metadata": {
+                            "rating": getattr(item, 'rating', 0),
+                            "platform": getattr(item, 'platform', ""),
+                            "review_text": getattr(item, 'review_text', "")[:100]  # Truncate for storage
+                        }
                     }
-                }
+                else:
+                    # Dict object
+                    data_point = {
+                        "timestamp": item.get("review_date", datetime.now().isoformat()),
+                        "value": item.get("sentiment_score", 0),
+                        "metadata": {
+                            "rating": item.get("rating", 0),
+                            "platform": item.get("platform", ""),
+                            "review_text": item.get("review_text", "")[:100]  # Truncate for storage
+                        }
+                    }
                 data_points.append(data_point)
             
             return await self.tigerdata_client.store_time_series_data(metric_name, data_points)

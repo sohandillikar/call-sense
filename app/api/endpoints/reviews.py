@@ -53,9 +53,11 @@ async def _process_reviews(reviews: List[Dict[str, Any]], db: Session, is_compet
         )
         
         # Store in database
+        import time
+        timestamp = int(time.time())
         if is_competitor:
             review_record = CompetitorReview(
-                review_id=f"{review.get('platform', '')}_{review.get('reviewer_name', '')}_{review.get('review_date', '')}",
+                review_id=f"{competitor_name}_{review.get('platform', '')}_{review.get('reviewer_name', '')}_{timestamp}",
                 competitor_name=competitor_name,
                 platform=review.get("platform", ""),
                 reviewer_name=review.get("reviewer_name", ""),
@@ -68,7 +70,7 @@ async def _process_reviews(reviews: List[Dict[str, Any]], db: Session, is_compet
             )
         else:
             review_record = CompanyReview(
-                review_id=f"{review.get('platform', '')}_{review.get('reviewer_name', '')}_{review.get('review_date', '')}",
+                review_id=f"company_{review.get('platform', '')}_{review.get('reviewer_name', '')}_{timestamp}",
                 platform=review.get("platform", ""),
                 reviewer_name=review.get("reviewer_name", ""),
                 rating=review.get("rating", 0),
@@ -148,8 +150,10 @@ async def scrape_company_reviews(
             )
             
             # Store in database
+            import time
+            timestamp = int(time.time())
             review_record = CompanyReview(
-                review_id=f"{review.get('platform', '')}_{review.get('reviewer_name', '')}_{review.get('review_date', '')}",
+                review_id=f"{request.business_name}_{review.get('platform', '')}_{review.get('reviewer_name', '')}_{timestamp}",
                 platform=review.get("platform", ""),
                 reviewer_name=review.get("reviewer_name", ""),
                 rating=review.get("rating", 0),
@@ -239,8 +243,10 @@ async def scrape_competitor_reviews(
             )
             
             # Store in database
+            import time
+            timestamp = int(time.time())
             review_record = CompetitorReview(
-                review_id=f"{review.get('platform', '')}_{review.get('reviewer_name', '')}_{review.get('review_date', '')}",
+                review_id=f"{request.business_name}_{review.get('platform', '')}_{review.get('reviewer_name', '')}_{timestamp}",
                 competitor_name=request.business_name,
                 platform=review.get("platform", ""),
                 reviewer_name=review.get("reviewer_name", ""),
