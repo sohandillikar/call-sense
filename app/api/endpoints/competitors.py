@@ -57,13 +57,16 @@ async def add_competitor(
 ):
     """Add a new competitor to monitor"""
     try:
-        # Check if competitor already exists
+        # Check if competitor already exists (exact match first)
         existing = db.query(CompetitorData).filter(
             CompetitorData.competitor_name == request.competitor_name
         ).first()
         
         if existing:
-            raise HTTPException(status_code=400, detail="Competitor already exists")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Competitor '{request.competitor_name}' already exists. Please choose a different name or use the existing competitor."
+            )
         
         # Create new competitor record
         competitor = CompetitorData(

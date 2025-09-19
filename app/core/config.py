@@ -25,7 +25,7 @@ class Settings(BaseSettings):
     # Application
     DEBUG: bool = True
     SECRET_KEY: str = "your-secret-key-change-in-production"
-    ALLOWED_HOSTS: Union[str, List[str]] = "localhost,127.0.0.1"
+    ALLOWED_HOSTS: Union[str, List[str]] = "localhost,127.0.0.1,http://localhost:5173,http://localhost:5174,http://localhost:5175"
     
     # Vector Search
     VECTOR_DIMENSION: int = 384
