@@ -1,4 +1,5 @@
 from fastapi import FastAPI, HTTPException
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 import psycopg2
 import os
@@ -9,6 +10,15 @@ from datetime import datetime
 load_dotenv('./credentials/tiger-cloud-db-89754-credentials.env')
 
 app = FastAPI(title="Customer Calls API", version="1.0.0")
+
+# Add CORS middleware
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:8080", "http://127.0.0.1:3000"],  # Frontend URLs
+    allow_credentials=True,
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],  # Include OPTIONS for preflight
+    allow_headers=["*"],  # Allow all headers
+)
 
 class GetCallsRequest(BaseModel):
     phone: str
