@@ -90,4 +90,4 @@ CallSense transforms the **black box** of customer calls into a **crystal clear 
 
 _Built with ❤️ for businesses that care about their customers._
 
-**Ready to transform your customer calls into business success?** [Get started now →](#getting-started)
+**Ready to transform your customer calls into business success?** [Get started now →](https://github.com/sohandillikar/call-sense)
