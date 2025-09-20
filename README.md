@@ -1,4 +1,4 @@
-_Update: We won 2nd place for the best use of Gladia! Yay!_
+_Update: We won 1st place for the best use of Gladia! Yay!_
 
 # CallSense - Customer Call Analytics Dashboard
 
