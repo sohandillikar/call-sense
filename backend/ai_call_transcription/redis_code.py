@@ -5,7 +5,7 @@ import array
 # -------- CONFIG --------
 REDIS_HOST = "redis-12066.c16.us-east-1-2.ec2.redns.redis-cloud.com"
 REDIS_PORT = 12066
-REDIS_API_KEY = "S4te2szlbxw980o53gpvecdlt349xpyi3pn3mtgdz5qjfsjkbk5"
+REDIS_API_KEY = ""
 INDEX_NAME = "doc_idx"
 VECTOR_DIM = 4  # size of your vectors
 VECTOR_FIELD = "vector"
