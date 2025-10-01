@@ -24,7 +24,7 @@ ELEVENLABS_API_KEY = os.getenv("ELEVENLABS_API_KEY",)
 client = OpenAI(api_key=OPENAI_API_KEY)
 eleven_client = ElevenLabs(api_key=ELEVENLABS_API_KEY)
 
-CSV_FILE = "/Users/savirdillikar/aws-hack/call_insights.csv"
+CSV_FILE = "./call_insights.csv"
 app = Flask(__name__)
 app.secret_key = 'your-secret-key-here'  # Change this to a secure secret key
 
