@@ -1,7 +1,5 @@
 _Update: We won 1st place for the best use of Gladia! Yay!_
 
-Dummy commit
-
 # CallSense - Customer Call Analytics Dashboard
 
 > **Transform customer calls into actionable business insights with AI-powered sentiment analysis and real-time analytics.**
